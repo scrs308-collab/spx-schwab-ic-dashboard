@@ -24,11 +24,25 @@ def _basic_header():
     return {"Authorization": f"Basic {basic}"}
 
 def load_tokens() -> Dict[str, Any]:
+    refresh = os.getenv("SCHWAB_REFRESH_TOKEN")
+
+    if refresh:
+        return {
+            "refresh_token": refresh,
+            "access_token": os.getenv("SCHWAB_ACCESS_TOKEN"),
+            "expires_in": int(os.getenv("SCHWAB_EXPIRES_IN", "0")),
+            "_saved_at": int(os.getenv("SCHWAB_SAVED_AT", "0")),
+        }
+
     if not TOKEN_FILE.exists():
-        raise SchwabAuthError("tokens.json not found. Run python schwab_auth.py first.")
+        raise SchwabAuthError("No Schwab token found. Set SCHWAB_REFRESH_TOKEN or run python schwab_auth.py first.")
+
     return json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
 
 def save_tokens(tokens: Dict[str, Any]):
+    if os.getenv("SCHWAB_REFRESH_TOKEN"):
+        return
+
     TOKEN_FILE.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
 
 def refresh_access_token() -> str:
