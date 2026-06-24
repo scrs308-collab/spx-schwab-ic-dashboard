@@ -249,4 +249,13 @@ def api_recommend(
         symbol = "$SPX"
 
     chain = get_option_chain(symbol=symbol, strike_count=strike_count)
-    return recommend_ics(chain, dte=dte, wing_width=wing_width, min_credit=min_credit, max_spread=max_spread, count=count)
+    return {
+    "symbol": chain.get("symbol"),
+    "underlying": underlying,
+    "expiration": exp,
+    "iv": volatility,
+    "expected_move": round(expected_move, 2),
+    "results": candidates[:count],
+    "total_found": len(candidates),
+    "rejects": rejects
+}
