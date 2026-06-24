@@ -288,14 +288,14 @@ def api_recommend(
     if symbol.upper() == "SPX":
         symbol = "$SPX"
 
-        chain = get_option_chain(symbol=symbol, strike_count=strike_count)
+    chain = get_option_chain(symbol=symbol, strike_count=strike_count)
 
-        return recommend_ics(
-    chain,
-    dte=dte,
-    wing_width=wing_width,
-    min_credit=min_credit,
-    max_spread=max_spread,
-    count=count,
-    buffer_mult=buffer_mult
-)
+    return recommend_ics(
+        chain,
+        dte=dte,
+        wing_width=wing_width,
+        min_credit=min_credit,
+        max_spread=max_spread,
+        count=count,
+        buffer_mult=buffer_mult
+    )       
