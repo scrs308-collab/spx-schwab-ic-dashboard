@@ -1,19 +1,69 @@
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 import math
+import os
+import secrets
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 
 from schwab_client import get_option_chain
 
+
 app = FastAPI(title="SPX Schwab IC Dashboard")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+security = HTTPBasic()
+
+APP_USERNAME = os.getenv("APP_USERNAME", "joe")
+APP_PASSWORD = os.getenv("APP_PASSWORD", "change-me")
+
+
+def require_login(credentials: HTTPBasicCredentials = Depends(security)):
+    username_ok = secrets.compare_digest(credentials.username, APP_USERNAME)
+    password_ok = secrets.compare_digest(credentials.password, APP_PASSWORD)
+
+    if not (username_ok and password_ok):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+    return credentials.username
+
+@app.get("/api/recommend")
+def api_recommend(
+    user: str = Depends(require_login),
+    symbol: str = Query("$SPX"),
+    dte: int = Query(0),
+    wing_width: int = Query(25),
+    min_credit: float = Query(0.80),
+    max_spread: float = Query(2.00),
+    strike_count: int = Query(20),
+    count: int = Query(10)
+):
+    if symbol.upper() == "SPX":
+        symbol = "$SPX"
+
+    chain = get_option_chain(
+        symbol=symbol,
+        strike_count=strike_count
+    )
+
+    return recommend_ics(
+        chain,
+        dte=dte,
+        wing_width=wing_width,
+        min_credit=min_credit,
+        max_spread=max_spread,
+        count=count
+    )
 @app.get("/")
-def home():
+def home(user: str = Depends(require_login)):
     return FileResponse("static/index.html")
 
 def mid(bid, ask, last=None):
