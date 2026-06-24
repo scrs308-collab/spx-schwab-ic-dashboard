@@ -177,5 +177,8 @@ def api_recommend(
     strike_count: int = Query(20),
     count: int = Query(10)
 ):
+    if symbol.upper() == "SPX":
+    symbol = "$SPX"
+    
     chain = get_option_chain(symbol=symbol, strike_count=strike_count)
     return recommend_ics(chain, dte=dte, wing_width=wing_width, min_credit=min_credit, max_spread=max_spread, count=count)
