@@ -105,6 +105,28 @@ def opt_delta(opt):
         return 0.0
 
 
+def estimate_expected_move_from_straddle(flat: Dict, exp: Optional[str], underlying: float) -> float:
+    if not exp:
+        return 0.0
+
+    calls = flat.get("calls", {}).get(exp, {})
+    puts = flat.get("puts", {}).get(exp, {})
+    if not calls or not puts:
+        return 0.0
+
+    common_strikes = set(calls.keys()) & set(puts.keys())
+    if not common_strikes:
+        return 0.0
+
+    nearest_strike = min(common_strikes, key=lambda s: abs(s - underlying))
+    call_price = option_price(calls.get(nearest_strike))
+    put_price = option_price(puts.get(nearest_strike))
+    if call_price is None or put_price is None:
+        return 0.0
+
+    return round(call_price + put_price, 2)
+
+
 def pop_from_delta(delta):
     # rough estimate: 0.10 delta = about 90% OTM
     return max(0, min(100, round((1 - abs(delta)) * 100, 1)))
@@ -123,7 +145,10 @@ def trade_grade(score):
 def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: float, max_spread: float, count: int, buffer_mult: float):
     underlying = float(chain.get("underlyingPrice") or chain.get("underlying", {}).get("last") or 0)
     volatility = float(chain.get("volatility") or 15)
-    expected_move = underlying * (volatility / 100) * math.sqrt(max(dte or 1, 1) / 365)
+    flat = flatten_chain(chain)
+    exp = choose_expiration(flat, dte)
+
+    expected_move = estimate_expected_move_from_straddle(flat, exp, underlying)
 
     flat = flatten_chain(chain)
     exp = choose_expiration(flat, dte)
