@@ -4,7 +4,7 @@ import math
 import os
 import secrets
 
-from fastapi import FastAPI, Query, Depends, HTTPException, status
+from fastapi import FastAPI, Query, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -36,32 +36,30 @@ def require_login(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials.username
 
 @app.get("/api/recommend")
-def api_recommend(
-    user: str = Depends(require_login),
-    symbol: str = Query("$SPX"),
-    dte: int = Query(0),
-    wing_width: int = Query(25),
-    min_credit: float = Query(0.80),
-    max_spread: float = Query(2.00),
-    strike_count: int = Query(20),
-    count: int = Query(10)
-):
-    if symbol.upper() == "SPX":
-        symbol = "$SPX"
+def api_recommend(request: Request):
+    min_credit = float(request.query_params.get("min_credit", 1.00))
+    width = int(request.query_params.get("width", 25))
+    target_delta = float(request.query_params.get("target_delta", 0.10))
+    buffer_mult = float(request.query_params.get("buffer_mult", 1.0))
 
-    chain = get_option_chain(
-        symbol=symbol,
-        strike_count=strike_count
-    )
+    chain = get_option_chain()
+    spot = float(chain.get("underlyingPrice") or chain.get("underlying", {}).get("last") or 0)
+
+    if spot <= 0:
+        raise HTTPException(status_code=500, detail="Could not read SPX spot price from Schwab chain")
+
+    exp_move = 0
 
     return recommend_ics(
         chain,
-        dte=dte,
-        wing_width=wing_width,
-        min_credit=min_credit,
-        max_spread=max_spread,
-        count=count
+        spot,
+        exp_move,
+        min_credit,
+        width,
+        target_delta,
+        buffer_mult
     )
+
 @app.get("/")
 def home(user: str = Depends(require_login)):
     return FileResponse("static/index.html")
