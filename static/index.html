@@ -72,7 +72,7 @@ async function loadRecs(){
   document.getElementById("metrics").innerHTML="";
 
   try{
-    const url=`/api/recommend?symbol=${encodeURIComponent(s)}&dte=${d}&wing_width=${w}&min_credit=${c}&max_spread=${spr}&strike_count=100&count=12`;
+    const url=`/api/recommend?symbol=${encodeURIComponent(s)}&dte=${d}&wing_width=${w}&min_credit=${c}&max_spread=${spr}&strike_count=10&count=12`;
     const res=await fetch(url);
     const data=await res.json();
     if(data.error){throw new Error(data.error)}
