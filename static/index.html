@@ -84,7 +84,20 @@ async function loadRecs(){
       <div class="metric"><b>IV</b><span>${dec(data.iv)}%</span></div>
       <div class="metric"><b>Expected Move</b><span>±${dec(data.expected_move)}</span></div>
     `;
-
+   if (data.rejects) {
+  document.getElementById("metrics").innerHTML += `
+    <div class="metric">
+      <b>Why no candidates?</b>
+      <span>
+        Credit low: ${data.rejects.credit_too_low}<br>
+        Spread wide: ${data.rejects.bid_ask_too_wide}<br>
+        Missing price: ${data.rejects.missing_mid_price}<br>
+        Buffer small: ${data.rejects.buffer_too_small}<br>
+        No wing match: ${data.rejects.no_matching_wing}
+      </span>
+    </div>
+  `;
+}
     const rows=data.results.map((r,i)=>`
       <tr>
         <td>${i+1}</td><td>${r.long_put}</td><td>${r.short_put}</td><td>${r.short_call}</td><td>${r.long_call}</td>

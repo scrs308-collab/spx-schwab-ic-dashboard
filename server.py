@@ -141,22 +141,38 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
     put_strikes = sorted(puts.keys())
 
     candidates = []
+    rejects = {
+    "credit_too_low": 0,
+    "bid_ask_too_wide": 0,
+    "missing_mid_price": 0,
+    "buffer_too_small": 0,
+    "no_matching_wing": 0,
+}
+
     for sp in put_strikes:
         lp = sp - wing_width
         if lp not in puts:
+            rejects["no_matching_wing"] += 1
             continue
+
         if sp > underlying - expected_move * 0.65:
+            rejects["buffer_too_small"] += 1
             continue
+            
 
         for sc in call_strikes:
             lc = sc + wing_width
             if lc not in calls:
+                rejects["no_matching_wing"] += 1
                 continue
+
             if sc < underlying + expected_move * 0.65:
+                rejects["buffer_too_small"] += 1
                 continue
 
             legs = [puts[lp], puts[sp], calls[sc], calls[lc]]
             if not all(spread_ok(o, max_spread) for o in legs):
+                rejects["bid_ask_too_wide"] += 1
                 continue
 
             lp_price = option_price(puts[lp])
@@ -164,10 +180,12 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
             sc_price = option_price(calls[sc])
             lc_price = option_price(calls[lc])
             if None in [lp_price, sp_price, sc_price, lc_price]:
+                rejects["missing_mid_price"] += 1
                 continue
 
             credit = round((sp_price - lp_price) + (sc_price - lc_price), 2)
             if credit < min_credit:
+                rejects["credit_too_low"] += 1
                 continue
 
             max_profit = round(credit * 100, 2)
