@@ -104,15 +104,22 @@ def schwab_get(path: str, params: Dict[str, Any] | None = None) -> Dict[str, Any
 def get_quote(symbol: str):
     return schwab_get(f"/{symbol}/quotes")
 
-def get_option_chain(symbol: str, contract_type="ALL", strike_count=60, strategy="SINGLE", from_date=None, to_date=None):
+def get_option_chain(symbol: str, contract_type="ALL", strike_count=60,
+                     strategy=None, from_date=None, to_date=None):
+
     params = {
         "symbol": symbol,
         "contractType": contract_type,
         "strikeCount": strike_count,
-        "strategy": strategy,
     }
+
+    if strategy:
+        params["strategy"] = strategy
+
     if from_date:
         params["fromDate"] = from_date
+
     if to_date:
         params["toDate"] = to_date
+
     return schwab_get("/chains", params)
