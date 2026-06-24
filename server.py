@@ -125,6 +125,28 @@ def spread_ok(opt, max_spread=1.50):
         return False
     return (ask - bid) <= max_spread
 
+def opt_delta(opt):
+    try:
+        return abs(float(opt.get("delta") or 0))
+    except Exception:
+        return 0.0
+
+
+def pop_from_delta(delta):
+    # rough estimate: 0.10 delta = about 90% OTM
+    return max(0, min(100, round((1 - abs(delta)) * 100, 1)))
+
+
+def trade_grade(score):
+    if score >= 90:
+        return "A+"
+    if score >= 80:
+        return "A"
+    if score >= 70:
+        return "B"
+    if score >= 60:
+        return "C"
+    return "D"
 def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: float, max_spread: float, count: int):
     underlying = float(chain.get("underlyingPrice") or chain.get("underlying", {}).get("last") or 0)
     volatility = float(chain.get("volatility") or 15)
@@ -203,6 +225,15 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
             score += min(20, credit * 3)
             score += 10 if lower_be < underlying < upper_be else 0
 
+            put_delta = opt_delta(puts[sp])
+            call_delta = opt_delta(calls[sc])
+
+            put_pop = pop_from_delta(put_delta)
+            call_pop = pop_from_delta(call_delta)
+            condor_pop = round((put_pop / 100) * (call_pop / 100) * 100, 1)
+
+            grade = trade_grade(score)
+
             candidates.append({
                 "expiration": exp,
                 "underlying": underlying,
@@ -221,6 +252,12 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
                 "call_buffer": call_buffer,
                 "nearest_buffer": nearest_buffer,
                 "credit_risk": credit_risk,
+                "put_delta": put_delta,
+                "call_delta": call_delta,
+                "put_pop": put_pop,
+                "call_pop": call_pop,
+                "condor_pop": condor_pop,
+                "grade": grade,
                 "score": round(score, 1)
             })
 
@@ -233,7 +270,8 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
         "expected_move": round(expected_move, 2),
         "results": candidates[:count],
         "total_found": len(candidates),
-        "rejects": rejects
+        "rejects": rejects,
+        "best": candidates[0] if candidates else None
     }
 
 @app.get("/api/recommend")
