@@ -147,7 +147,7 @@ def trade_grade(score):
     if score >= 60:
         return "C"
     return "D"
-def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: float, max_spread: float, count: int):
+def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: float, max_spread: float, count: int, buffer_mult: float):
     underlying = float(chain.get("underlyingPrice") or chain.get("underlying", {}).get("last") or 0)
     volatility = float(chain.get("volatility") or 15)
     expected_move = underlying * (volatility / 100) * math.sqrt(max(dte or 1, 1) / 365)
@@ -177,7 +177,7 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
             rejects["no_matching_wing"] += 1
             continue
 
-        if sp > underlying - expected_move * 0.65:
+        if sp > underlying - expected_move * buffer_mult:
             rejects["buffer_too_small"] += 1
             continue
             
@@ -188,7 +188,7 @@ def recommend_ics(chain: Dict, dte: Optional[int], wing_width: int, min_credit: 
                 rejects["no_matching_wing"] += 1
                 continue
 
-            if sc < underlying + expected_move * 0.65:
+            if sp > underlying - expected_move * buffer_mult:
                 rejects["buffer_too_small"] += 1
                 continue
 
@@ -282,17 +282,20 @@ def api_recommend(
     min_credit: float = Query(0.80),
     max_spread: float = Query(2.00),
     strike_count: int = Query(10),
-    count: int = Query(10)
+    count: int = Query(10),
+    buffer_mult: float = Query(0.35),
 ):
     if symbol.upper() == "SPX":
         symbol = "$SPX"
 
-    chain = get_option_chain(symbol=symbol, strike_count=strike_count)
-    return recommend_ics(
-    chain,
-    dte=dte,
-    wing_width=wing_width,
-    min_credit=min_credit,
-    max_spread=max_spread,
-    count=count
-)
+        chain = get_option_chain(symbol=symbol, strike_count=strike_count)
+
+        return recommend_ics(
+            chain,
+            dte=dte,
+            wing_width=wing_width,
+            min_credit=min_credit,
+            max_spread=max_spread,
+            count=count,
+            buffer_mult=buffer_mult,
+        )
