@@ -174,7 +174,7 @@ def api_recommend(
     wing_width: int = Query(25),
     min_credit: float = Query(0.80),
     max_spread: float = Query(2.00),
-    strike_count: int = Query(20),
+    strike_count: int = Query(10),
     count: int = Query(10)
 ):
     if symbol.upper() == "SPX":
