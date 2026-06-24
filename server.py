@@ -1,9 +1,9 @@
+# Railway redeploy check - SPX symbol fix
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 import math
 import os
 import secrets
-
 from fastapi import FastAPI, Query, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -34,31 +34,6 @@ def require_login(credentials: HTTPBasicCredentials = Depends(security)):
         )
 
     return credentials.username
-
-@app.get("/api/recommend")
-def api_recommend(request: Request):
-    min_credit = float(request.query_params.get("min_credit", 1.00))
-    width = int(request.query_params.get("width", 25))
-    target_delta = float(request.query_params.get("target_delta", 0.10))
-    buffer_mult = float(request.query_params.get("buffer_mult", 1.0))
-
-    chain = get_option_chain()
-    spot = float(chain.get("underlyingPrice") or chain.get("underlying", {}).get("last") or 0)
-
-    if spot <= 0:
-        raise HTTPException(status_code=500, detail="Could not read SPX spot price from Schwab chain")
-
-    exp_move = 0
-
-    return recommend_ics(
-        chain,
-        spot,
-        exp_move,
-        min_credit,
-        width,
-        target_delta,
-        buffer_mult
-    )
 
 @app.get("/")
 def home(user: str = Depends(require_login)):
