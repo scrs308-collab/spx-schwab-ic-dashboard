@@ -264,6 +264,9 @@ def recommend_ics(
     buffer_mult: float,
     min_iv_rank: Optional[float],
     max_iv_rank: Optional[float],
+    min_short_delta: Optional[float],
+    max_short_delta: Optional[float],
+    min_credit_width: Optional[float],
 ):
     underlying = float(
         chain.get("underlyingPrice")
@@ -327,6 +330,8 @@ def recommend_ics(
         "missing_mid_price": 0,
         "buffer_too_small": 0,
         "no_matching_wing": 0,
+        "delta_out_of_range": 0,
+        "credit_width_too_low": 0,
     }
 
     min_put_short = underlying - expected_move * buffer_mult
@@ -390,6 +395,19 @@ def recommend_ics(
             put_delta = opt_delta(puts[sp])
             call_delta = opt_delta(calls[sc])
 
+            if min_short_delta is not None and (put_delta < min_short_delta or call_delta < min_short_delta):
+                rejects["delta_out_of_range"] += 1
+                continue
+
+            if max_short_delta is not None and (put_delta > max_short_delta or call_delta > max_short_delta):
+                rejects["delta_out_of_range"] += 1
+                continue
+
+            credit_width_ratio = credit / max(wing_width, 1)
+            if min_credit_width is not None and credit_width_ratio < min_credit_width:
+                rejects["credit_width_too_low"] += 1
+                continue
+
             put_pop = pop_from_delta(put_delta)
             call_pop = pop_from_delta(call_delta)
             condor_pop = round((put_pop / 100) * (call_pop / 100) * 100, 1)
@@ -426,6 +444,7 @@ def recommend_ics(
                 "short_call": sc,
                 "long_call": lc,
                 "credit": credit,
+                "credit_width_ratio": round(credit_width_ratio, 3),
                 "max_profit": max_profit,
                 "max_loss": max_loss,
                 "lower_be": lower_be,
@@ -473,8 +492,11 @@ def api_recommend(
     strike_count: int = Query(50),
     count: int = Query(10),
     buffer_mult: float = Query(1.0),
-    min_iv_rank: Optional[float] = Query(None),
-    max_iv_rank: Optional[float] = Query(None),
+    min_iv_rank: Optional[float] = Query(30),
+    max_iv_rank: Optional[float] = Query(65),
+    min_short_delta: Optional[float] = Query(0.05),
+    max_short_delta: Optional[float] = Query(0.15),
+    min_credit_width: Optional[float] = Query(0.20),
 ):
     clean_symbol = symbol.upper().strip()
 
@@ -493,4 +515,7 @@ def api_recommend(
         buffer_mult=buffer_mult,
         min_iv_rank=min_iv_rank,
         max_iv_rank=max_iv_rank,
+        min_short_delta=min_short_delta,
+        max_short_delta=max_short_delta,
+        min_credit_width=min_credit_width,
     )

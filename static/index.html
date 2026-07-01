@@ -27,14 +27,18 @@ th,td{border:1px solid #28314f;padding:8px;text-align:right;white-space:nowrap}t
   <label>Wing Width <input id="wing" type="number" value="25"></label>
   <label>Min Credit <input id="credit" type="number" value="0.80" step="0.05"></label>
   <label>Max Bid/Ask Spread <input id="spread" type="number" value="2.00" step="0.05"></label>
-  <label>Min IV Rank <input id="minIvRank" type="number" placeholder="0" min="0" max="100" step="1"></label>
-  <label>Max IV Rank <input id="maxIvRank" type="number" placeholder="100" min="0" max="100" step="1"></label>
+  <label>Min IV Rank <input id="minIvRank" type="number" value="30" min="0" max="100" step="1"></label>
+  <label>Max IV Rank <input id="maxIvRank" type="number" value="65" min="0" max="100" step="1"></label>
+  <label>Min Short Delta <input id="minShortDelta" type="number" value="0.05" min="0" max="1" step="0.01"></label>
+  <label>Max Short Delta <input id="maxShortDelta" type="number" value="0.15" min="0" max="1" step="0.01"></label>
+  <label>Min Credit/Width <input id="minCreditWidth" type="number" value="0.20" min="0" max="1" step="0.01"></label>
+  <label>EM Buffer <input id="bufferMult" type="number" value="1.00" min="0" step="0.05"></label>
   <button onclick="loadRecs()">Scan Option Chain</button>
 </div>
 <div class="card"><div id="status">Waiting. Somehow that is the most stable state of software.</div><div class="grid" id="metrics"></div></div>
 <div class="card table-wrap">
   <table id="table"><thead><tr>
-    <th>Rank</th><th>Grade</th><th>LP</th><th>SP</th><th>SC</th><th>LC</th><th>Credit</th><th>Max Profit</th><th>Max Loss</th><th>B/E</th><th>Nearest Buffer</th><th>POP</th><th>Avg Spread</th><th>Score</th>
+    <th>Rank</th><th>Grade</th><th>LP</th><th>SP</th><th>SC</th><th>LC</th><th>Credit</th><th>Credit/Width</th><th>Short Deltas</th><th>Max Profit</th><th>Max Loss</th><th>B/E</th><th>Nearest Buffer</th><th>POP</th><th>Avg Spread</th><th>Score</th>
   </tr></thead><tbody></tbody></table>
 </div>
 </main>
@@ -50,13 +54,20 @@ async function loadRecs(){
   var spr=document.getElementById("spread").value;
   var minIv=document.getElementById("minIvRank").value;
   var maxIv=document.getElementById("maxIvRank").value;
+  var minDelta=document.getElementById("minShortDelta").value;
+  var maxDelta=document.getElementById("maxShortDelta").value;
+  var minCreditWidth=document.getElementById("minCreditWidth").value;
+  var bufferMult=document.getElementById("bufferMult").value;
   document.getElementById("status").innerHTML="Scanning Schwab option chain...";
   document.querySelector("#table tbody").innerHTML="";
   document.getElementById("metrics").innerHTML="";
   try{
-    var params = new URLSearchParams({symbol:s,dte:d,wing_width:w,min_credit:c,max_spread:spr,strike_count:"50",count:"12",buffer_mult:"1.0"});
+    var params = new URLSearchParams({symbol:s,dte:d,wing_width:w,min_credit:c,max_spread:spr,strike_count:"50",count:"12",buffer_mult:bufferMult});
     paramIfPresent(params, "min_iv_rank", minIv);
     paramIfPresent(params, "max_iv_rank", maxIv);
+    paramIfPresent(params, "min_short_delta", minDelta);
+    paramIfPresent(params, "max_short_delta", maxDelta);
+    paramIfPresent(params, "min_credit_width", minCreditWidth);
     var res=await fetch("/api/recommend?" + params.toString());
     var data=await res.json();
     if(data.error){throw new Error(data.error)}
@@ -75,15 +86,17 @@ async function loadRecs(){
         'Spread wide: ' + data.rejects.bid_ask_too_wide + '<br>' +
         'Missing price: ' + data.rejects.missing_mid_price + '<br>' +
         'Buffer small: ' + data.rejects.buffer_too_small + '<br>' +
-        'No wing match: ' + data.rejects.no_matching_wing + '</span></div>';
+        'No wing match: ' + data.rejects.no_matching_wing + '<br>' +
+        'Delta out: ' + (data.rejects.delta_out_of_range || 0) + '<br>' +
+        'Credit/width low: ' + (data.rejects.credit_width_too_low || 0) + '</span></div>';
     }
     var rows=data.results.map(function(r,i){
       return '<tr title="Buffer/EM ' + r.em_buffer_ratio + '; delta quality ' + r.delta_quality + '; symmetry ' + r.symmetry + '; spread quality ' + r.spread_quality + '">' +
         '<td>' + (i+1) + '</td><td class="good">' + r.grade + '</td><td>' + r.long_put + '</td><td>' + r.short_put + '</td><td>' + r.short_call + '</td><td>' + r.long_call + '</td>' +
-        '<td class="good">' + dec(r.credit) + '</td><td class="good">' + money(r.max_profit) + '</td><td class="bad">' + money(r.max_loss) + '</td>' +
+        '<td class="good">' + dec(r.credit) + '</td><td>' + dec(r.credit_width_ratio) + '</td><td>' + dec(r.put_delta) + ' / ' + dec(r.call_delta) + '</td><td class="good">' + money(r.max_profit) + '</td><td class="bad">' + money(r.max_loss) + '</td>' +
         '<td>' + dec(r.lower_be) + ' / ' + dec(r.upper_be) + '</td><td>' + dec(r.nearest_buffer) + '</td><td>' + dec(r.condor_pop) + '%</td><td>' + dec(r.avg_leg_spread) + '</td><td class="good">' + r.score + '</td></tr>';
     }).join("");
-    document.querySelector("#table tbody").innerHTML=rows || '<tr><td colspan="14" class="muted">No candidates matched the current filters.</td></tr>';
+    document.querySelector("#table tbody").innerHTML=rows || '<tr><td colspan="16" class="muted">No candidates matched the current filters.</td></tr>';
   }catch(err){document.getElementById("status").innerHTML="Error: "+err.message;}
 }
 </script>
