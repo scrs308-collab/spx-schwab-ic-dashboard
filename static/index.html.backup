@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SPX Schwab IC Recommender</title>
+<style>
+body{font-family:Arial;background:#080b18;color:#f2f5ff;margin:0}
+header{padding:18px 24px;background:#060817;border-bottom:1px solid #28314f}
+main{padding:22px}
+.card{background:#11162a;border:1px solid #28314f;border-radius:14px;padding:16px;margin-bottom:16px}
+input{background:#080b18;color:white;border:1px solid #28314f;border-radius:8px;padding:8px;width:100px}
+button{padding:10px 18px;border:0;border-radius:10px;background:#4da3ff;color:white;font-weight:bold}
+.grid{display:flex;gap:14px;flex-wrap:wrap}
+.metric{background:#171d34;border:1px solid #28314f;border-radius:12px;padding:12px;min-width:140px}
+.metric b{display:block;color:#9aa6c5;font-size:12px}
+.metric span{font-size:22px}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #28314f;padding:8px;text-align:right}
+th{background:#171d34;color:#d8def5}
+td:first-child,th:first-child{text-align:center}
+.good{color:#24d17e;font-weight:bold}
+.bad{color:#ff4d6d}
+small{color:#9aa6c5}
+</style>
+</head>
+<body>
+<header>
+<h1>SPX Schwab Iron Condor Recommender</h1>
+<small>Read-only Schwab option-chain scanner. It recommends candidates. It does not trade for you, because lawsuits and common sense.</small>
+</header>
+<main>
+<div class="card">
+  <label>Symbol <input id="symbol" value="SPX"></label>
+  <label>DTE <input id="dte" type="number" value="0"></label>
+  <label>Wing Width <input id="wing" type="number" value="25"></label>
+  <label>Min Credit <input id="credit" type="number" value="0.80" step="0.05"></label>
+  <label>Max Bid/Ask Spread <input id="spread" type="number" value="2.00" step="0.05"></label>
+  <button onclick="loadRecs()">Scan Option Chain</button>
+</div>
+
+<div class="card">
+  <div id="status">Waiting. Somehow that is the most stable state of software.</div>
+  <div class="grid" id="metrics"></div>
+</div>
+
+<div class="card">
+  <table id="table">
+    <thead>
+      <tr>
+        <th>Rank</th><th>LP</th><th>SP</th><th>SC</th><th>LC</th>
+        <th>Credit</th><th>Max Profit</th><th>Max Loss</th><th>B/E</th>
+        <th>Nearest Buffer</th><th>Credit/Risk</th><th>Score</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+</main>
+
+<script>
+function money(x){return "$"+Number(x).toFixed(0);}
+function dec(x){return Number(x).toFixed(2);}
+async function loadRecs(){
+  const s=document.getElementById("symbol").value;
+  const d=document.getElementById("dte").value;
+  const w=document.getElementById("wing").value;
+  const c=document.getElementById("credit").value;
+  const spr=document.getElementById("spread").value;
+
+  document.getElementById("status").innerHTML="Scanning Schwab option chain...";
+  document.querySelector("#table tbody").innerHTML="";
+  document.getElementById("metrics").innerHTML="";
+
+  try{
+    const url=`/api/recommend?symbol=${encodeURIComponent(s)}&dte=${d}&wing_width=${w}&min_credit=${c}&max_spread=${spr}&strike_count=10&count=12`;
+    const res=await fetch(url);
+    const data=await res.json();
+    if(data.error){throw new Error(data.error)}
+    document.getElementById("status").innerHTML=`Found ${data.total_found} candidates. Showing top ${data.results.length}.`;
+
+    document.getElementById("metrics").innerHTML = `
+      <div class="metric"><b>Underlying</b><span>${dec(data.underlying)}</span></div>
+      <div class="metric"><b>Expiration</b><span>${data.expiration}</span></div>
+      <div class="metric"><b>IV</b><span>${dec(data.iv)}%</span></div>
+      <div class="metric"><b>Expected Move</b><span>±${dec(data.expected_move)}</span></div>
+    `;
+   if (data.rejects) {
+  document.getElementById("metrics").innerHTML += `
+    <div class="metric">
+      <b>Why no candidates?</b>
+      <span>
+        Credit low: ${data.rejects.credit_too_low}<br>
+        Spread wide: ${data.rejects.bid_ask_too_wide}<br>
+        Missing price: ${data.rejects.missing_mid_price}<br>
+        Buffer small: ${data.rejects.buffer_too_small}<br>
+        No wing match: ${data.rejects.no_matching_wing}
+      </span>
+    </div>
+  `;
+}
+    const rows=data.results.map((r,i)=>`
+      <tr>
+        <td>${i+1}</td><td>${r.long_put}</td><td>${r.short_put}</td><td>${r.short_call}</td><td>${r.long_call}</td>
+        <td class="good">${dec(r.credit)}</td><td class="good">${money(r.max_profit)}</td><td class="bad">${money(r.max_loss)}</td>
+        <td>${dec(r.lower_be)} / ${dec(r.upper_be)}</td>
+        <td>${dec(r.nearest_buffer)}</td><td>${r.credit_risk}</td><td class="good">${r.score}</td>
+      </tr>`).join("");
+    document.querySelector("#table tbody").innerHTML=rows;
+  }catch(err){
+    document.getElementById("status").innerHTML="Error: "+err.message;
+  }
+}
+</script>
+</body>
+</html>
